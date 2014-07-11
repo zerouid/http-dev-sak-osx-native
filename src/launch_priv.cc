@@ -5,25 +5,75 @@
 
 
 v8::Handle<v8::Value> LaunchPrivilegedProcess(const v8::Arguments& args) {
-    v8::HandleScope scope;
-    if(args.Length() != 1) {
-      v8::ThrowException(v8::Exception::TypeError(v8::String::New("Wrong number of arguments")));
-      return scope.Close(v8::Undefined());
-    }
-    if(!args[0]->IsString()) {
-      v8::ThrowException(v8::Exception::TypeError(v8::String::New("Argument must be a String")));
-      return scope.Close(v8::Undefined());
-    }
-    v8::String::Utf8Value path(args[0]->ToString());
-    AuthorizationRef authRef;
+  v8::HandleScope scope;
+  if(args.Length() < 1 && args.Length() > 2) {
+    v8::ThrowException(v8::Exception::TypeError(v8::String::New("Wrong number of arguments")));
+    return scope.Close(v8::Undefined());
+  }
+  if(!args[0]->IsString()) {
+    v8::ThrowException(v8::Exception::TypeError(v8::String::New("Argument must be a String")));
+    return scope.Close(v8::Undefined());
+  }
+  if(args.Length() == 2 && !args[1]->IsArray()) {
+    v8::ThrowException(v8::Exception::TypeError(v8::String::New("Argument must be a Array")));
+    return scope.Close(v8::Undefined());
+  }
 
-    OSStatus status;
-    status = AuthorizationCreate(NULL, kAuthorizationEmptyEnvironment, kAuthorizationFlagDefaults, &authRef);
-    if (status == errAuthorizationSuccess) {
-      status = AuthorizationExecuteWithPrivileges(authRef, (char *)*path, kAuthorizationFlagDefaults, NULL, NULL);
-      AuthorizationFree(authRef, kAuthorizationFlagDestroyRights);
+  v8::String::Utf8Value path(args[0]->ToString());
+  char **myArguments = NULL;
+  FILE *myCommunicationsPipe = NULL;
+  if(args.Length() == 2) {
+    v8::Local<v8::Array> arr = v8::Local<v8::Array>::Cast(args[1]);
+    int length = arr->Length();
+    myArguments = (char**)malloc((length + 1) * sizeof(char*));
+    for(int i = 0; i < length; i++)
+    {
+      v8::String::Utf8Value strval(arr->Get(i)->ToString());
+      myArguments[i] = (char *) malloc(strval.length() + 1);
+      strcpy(myArguments[i], *strval);
     }
-    return scope.Close(v8::Boolean::New(status == errAuthorizationSuccess));
+    myArguments[length] = NULL;
+  }
+
+  //   printf("path: %s\n", *path);
+  //   for(int i=0; myArguments[i] != NULL; i++) {
+  //     printf("arg[%d]: %s\n", i, myArguments[i]);
+  //   }
+
+  AuthorizationRef authRef;
+  char myReadBuffer[128];
+
+  OSStatus status;
+  status = AuthorizationCreate(NULL, kAuthorizationEmptyEnvironment, kAuthorizationFlagDefaults, &authRef);
+  if (status == errAuthorizationSuccess) {
+    AuthorizationItem items = {kAuthorizationRightExecute, 0, NULL, 0};
+    AuthorizationRights rights = {1, &items};
+
+    status = AuthorizationCopyRights (authRef, &rights, NULL, kAuthorizationFlagDefaults |
+                                      kAuthorizationFlagInteractionAllowed |
+                                      kAuthorizationFlagPreAuthorize |
+                                      kAuthorizationFlagExtendRights, NULL );
+    if (status == errAuthorizationSuccess) {
+      status = AuthorizationExecuteWithPrivileges(authRef, (char *)*path, kAuthorizationFlagDefaults, myArguments, &myCommunicationsPipe);
+      if (status == errAuthorizationSuccess)
+        for(;;)
+      {
+        int bytesRead = read (fileno (myCommunicationsPipe),myReadBuffer, sizeof (myReadBuffer));
+        if (bytesRead < 1) break;
+        write (fileno (stdout), myReadBuffer, bytesRead);
+      }
+    }
+  }
+
+  if(myArguments) {
+    for(int i=0; myArguments[i] != NULL; i++) {
+      free(myArguments[i]);
+    }
+
+    free(myArguments);
+  }
+  AuthorizationFree (authRef, kAuthorizationFlagDefaults);
+  return scope.Close(v8::Integer::New(status));
 }
 
 /*
@@ -240,12 +290,12 @@ v8::Handle<v8::Value> SetProxySettings(const v8::Arguments& args)
 */
 
 void Init(v8::Handle<v8::Object> exports) {
-    exports->Set(v8::String::New("launchPriv"),
-         v8::FunctionTemplate::New(LaunchPrivilegedProcess)->GetFunction());
-//     exports->Set(v8::String::New("getProxySettings"),
-//          v8::FunctionTemplate::New(GetProxySettings)->GetFunction());
-//     exports->Set(v8::String::New("setProxySettings"),
-//          v8::FunctionTemplate::New(SetProxySettings)->GetFunction());
+  exports->Set(v8::String::New("launchPriv"),
+               v8::FunctionTemplate::New(LaunchPrivilegedProcess)->GetFunction());
+  //     exports->Set(v8::String::New("getProxySettings"),
+  //          v8::FunctionTemplate::New(GetProxySettings)->GetFunction());
+  //     exports->Set(v8::String::New("setProxySettings"),
+  //          v8::FunctionTemplate::New(SetProxySettings)->GetFunction());
 }
 
 NODE_MODULE(launch_priv, Init)
