@@ -4,7 +4,7 @@
 #include <SystemConfiguration/SystemConfiguration.h>
 
 
-void LaunchPrivilegedProcess(const v8::FunctionCallbackInfo<Value>& args) {
+void LaunchPrivilegedProcess(const v8::FunctionCallbackInfo<v8::Value>& args) {
   v8::Isolate* isolate = v8::Isolate::GetCurrent();
   v8::HandleScope scope(isolate);
 
