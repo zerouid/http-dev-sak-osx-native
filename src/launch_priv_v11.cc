@@ -75,7 +75,7 @@ void LaunchPrivilegedProcess(const v8::FunctionCallbackInfo<v8::Value>& args) {
     free(myArguments);
   }
   AuthorizationFree (authRef, kAuthorizationFlagDefaults);
-  args.ReturnValue().Set(v8::Integer::New(status));
+  args.GetReturnValue().Set(v8::Integer::New(status));
 }
 
 /*
