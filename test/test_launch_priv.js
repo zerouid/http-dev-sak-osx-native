@@ -1,3 +1,3 @@
 var osx = require('../osx-native');
 
-osx.ensurePriviledged();
+osx.launchPriviledged();
