@@ -5,7 +5,7 @@
 
 
 void LaunchPrivilegedProcess(const v8::FunctionCallbackInfo<v8::Value>& args) {
-  v8::Isolate* isolate = v8::Isolate::GetCurrent();
+  v8::Isolate* isolate = args.GetIsolate();
   v8::HandleScope scope(isolate);
 
   if(args.Length() < 1 && args.Length() > 2) {
@@ -78,9 +78,6 @@ void LaunchPrivilegedProcess(const v8::FunctionCallbackInfo<v8::Value>& args) {
   args.GetReturnValue().Set(v8::Integer::New(status));
 }
 
-/*
- * For future use (eventually)
- *
 
 v8::Handle<v8::Value> V8StringFromCFString(CFStringRef cfString) {
   if (!cfString) {
@@ -128,9 +125,10 @@ void DictStringValueToProp(v8::Handle<v8::Object> obj, CFDictionaryRef dict, CFS
 
 
 
-v8::Handle<v8::Value> GetProxySettings(const v8::Arguments& args)
+void GetProxySettings(const v8::FunctionCallbackInfo<v8::Value>& args)
 {
-  v8::HandleScope scope;
+  v8::Isolate* isolate = args.GetIsolate();
+  v8::HandleScope scope(isolate);
   // Get the dictionary.
 
   SCDynamicStoreRef proxyStore = SCDynamicStoreCreate(NULL,CFSTR("node"),NULL,NULL);
@@ -231,19 +229,21 @@ v8::Handle<v8::Value> GetProxySettings(const v8::Arguments& args)
 //       *port = 0;
 //     }
 //     return result;
-  return scope.Close(proxySettings);
+   args.GetReturnValue().Set(proxySettings);
 }
 
-v8::Handle<v8::Value> SetProxySettings(const v8::Arguments& args)
+
+void SetProxySettings(const v8::FunctionCallbackInfo<v8::Value>& args)
 {
-  v8::HandleScope scope;
+  v8::Isolate* isolate = args.GetIsolate();
+  v8::HandleScope scope(isolate);
   if(args.Length() != 1) {
-    v8::ThrowException(v8::Exception::TypeError(v8::String::New("Wrong number of arguments")));
-    return scope.Close(v8::Undefined());
+    isolate->ThrowException(v8::Exception::TypeError(v8::String::NewFromUtf8(isolate, "Wrong number of arguments")));
+    return;
   }
   if(!args[0]->IsObject()) {
-    v8::ThrowException(v8::Exception::TypeError(v8::String::New("Argument must be an Object")));
-    return scope.Close(v8::Undefined());
+    isolate->ThrowException(v8::Exception::TypeError(v8::String::NewFromUtf8(isolate, "Argument must be an Object")));
+    return;
   }
 
   v8::Local<v8::Object> proxySettings = args[0]->ToObject();
@@ -260,18 +260,27 @@ v8::Handle<v8::Value> SetProxySettings(const v8::Arguments& args)
   CFNumberRef cfone = CFNumberCreate(NULL,kCFNumberLongType,&one);
   int port = 8888;
   CFNumberRef cfport = CFNumberCreate(NULL,kCFNumberLongType,&port);
-  CFStringRef errDesc;
   CFIndex errCode;
   CFErrorRef err;
+
+  SCDynamicStoreRef dynRef=SCDynamicStoreCreate(kCFAllocatorSystemDefault, CFSTR("iked"), NULL, NULL);
+  CFDictionaryRef ipv4key = (CFDictionaryRef)SCDynamicStoreCopyValue(dynRef,CFSTR("State:/Network/Global/IPv4"));
+  CFStringRef primaryserviceid = (CFStringRef)CFDictionaryGetValue(ipv4key,CFSTR("PrimaryService"));
+  //Setup:/Network/Service/ServiceID/Proxies
+
+  CFStringRef primaryservicepath = (CFStringRef)CFStringCreateWithFormat(NULL,NULL,CFSTR("Setup:/Network/Service/%@/Proxies"),primaryserviceid);
+
 
   CFStringRef hostStr = V8StringToCFString(proxySettings->Get(v8::String::NewSymbol("HTTPProxyHost")));
   if(hostStr) {
     CFDictionarySetValue(proxyDictSet, kSCPropNetProxiesHTTPProxy,hostStr);
     CFDictionarySetValue(proxyDictSet, kSCPropNetProxiesHTTPPort ,cfport);
     CFDictionarySetValue(proxyDictSet, kSCPropNetProxiesHTTPEnable,cfone);
-    if(!SCDynamicStoreSetValue(proxyStore,kSCPropNetProxiesHTTPSProxy,proxyDictSet)) {
+//     CFStringRef key = SCDynamicStoreKeyCreateNetworkGlobalEntity(NULL, kSCDynamicStoreDomainState, kSCEntNetProxies);
+    CFShow(primaryservicepath);
+    if(!SCDynamicStoreSetValue(proxyStore,primaryservicepath,proxyDictSet)) {
       err = SCCopyLastError();
-      //errDesc = CFErrorCopyDescription(err);
+      printf("Error is %s\n",SCErrorString(SCError()));
       errCode = CFErrorGetCode(err);
       result = v8::Integer::New(errCode);
     }
@@ -285,19 +294,18 @@ v8::Handle<v8::Value> SetProxySettings(const v8::Arguments& args)
     CFRelease(proxyDict);
   }
 
-  return scope.Close(result);
-//   return scope.Close(v8::Undefined());
+   args.GetReturnValue().Set(result);
 }
 
-*/
+
 
 void Init(v8::Handle<v8::Object> exports) {
   exports->Set(v8::String::New("launchPriv"),
                v8::FunctionTemplate::New(LaunchPrivilegedProcess)->GetFunction());
-  //     exports->Set(v8::String::New("getProxySettings"),
-  //          v8::FunctionTemplate::New(GetProxySettings)->GetFunction());
-  //     exports->Set(v8::String::New("setProxySettings"),
-  //          v8::FunctionTemplate::New(SetProxySettings)->GetFunction());
+      exports->Set(v8::String::New("getProxySettings"),
+           v8::FunctionTemplate::New(GetProxySettings)->GetFunction());
+      exports->Set(v8::String::New("setProxySettings"),
+           v8::FunctionTemplate::New(SetProxySettings)->GetFunction());
 }
 
 NODE_MODULE(launch_priv, Init)

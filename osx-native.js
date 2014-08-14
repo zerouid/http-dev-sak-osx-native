@@ -33,4 +33,6 @@ module.exports = {
       console.log('ALLREADY ROOT!');
     }
   },
+  getProxySettings: launch_priv.getProxySettings,
+  setProxySettings: launch_priv.setProxySettings,
 };
