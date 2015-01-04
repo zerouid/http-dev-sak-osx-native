@@ -2,7 +2,10 @@
   "targets": [
     {
       "target_name":"launch_priv",
-      "sources": ["src/launch_priv_v11.cc"],
+      "sources": ["src/osx_native.cc"],
+      "include_dirs": [
+        "<!(node -e \"require('nan')\")"
+      ],
       "link_settings": {
         "libraries": [
           "$(SDKROOT)/System/Library/Frameworks/Security.framework",

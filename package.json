@@ -1,6 +1,6 @@
 {
   "name": "http-dev-sak-osx-native",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "author": "Ivan Minchev <i.minchev@gmail.com>",
   "description": "Native bindings required by http-dev-sak application",
   "repository": {
@@ -10,15 +10,13 @@
   "homepage": "http://github.com/zerouid/http-dev-sak-osx-native",
   "main": "./osx-native.js",
   "keywords": [],
-  "engines": {
-    "node": ">=0.11.0"
-  },
   "scripts": {
     "test": "node test/test_launch_priv.js"
   },
   "dependencies": {
-      "process": "~0.7.0"
+    "nan": "^1.4.1"
   },
   "devDependencies": {},
-  "optionalDependencies": {}
+  "optionalDependencies": {},
+  "gypfile": true
 }
