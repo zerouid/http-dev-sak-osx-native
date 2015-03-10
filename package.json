@@ -14,7 +14,7 @@
     "test": "node test/test_launch_priv.js"
   },
   "dependencies": {
-    "nan": "^1.4.1"
+    "nan": "~1.6.1"
   },
   "devDependencies": {},
   "optionalDependencies": {},
