@@ -2,43 +2,42 @@
 'use strict';
 
 var launch_priv = require('./build/Release/launch_priv'),
+    util = require('util'),
+    events = require('events'),
     debuglog = require('util').debuglog('osx-native');
 
-module.exports = {
-    launchPriviledged: function (cmd, args, progress, callback) {
-        debuglog('Current uid: ' + process.getuid());
-        try {
-            process.setuid(0);
-            debuglog('New uid: ' + process.getuid());
-        } catch (err) {
-            debuglog('Failed to set uid: ' + err);
-        }
-        if (process.getuid() !== 0) {
-            var cmd_line = cmd || process.execPath,
-                cmd_args = args || process.argv.slice(1).concat(process.execArgv),
-                outputBuff = new Buffer(0),
-                result = launch_priv.launchPriv(cmd_line, cmd_args, function (buff) {
-                    debuglog('received: ' + buff);
-                    if (typeof progress === 'function') {
-                        progress(buff);
-                    }
-                }, function () {
-                    debuglog('Done.');
-                    if (typeof callback === 'function') {
-                        callback(null);
-                    }
-                });
+function OSXLauncher() {
+    if (!(this instanceof OSXLauncher))
+        return new OSXLauncher();
 
-            debuglog('cmd_line: ' + cmd_line + ' ' + cmd_args.join());
-            debuglog('result:' + result);
-            if (result !== 0) {
-                debuglog('ERROR: ' + result);
-                if (typeof callback === 'function') {
-                    callback(result);
-                }
-            }
-        } else {
-            debuglog('ALLREADY ROOT!');
-        }
+    events.EventEmitter.call(this);
+}
+
+util.inherits(OSXLauncher, events.EventEmitter);
+
+OSXLauncher.prototype.launchPriviledged = function (cmd, args) {
+    var self = this;
+    debuglog('Current uid: ' + process.getuid());
+    var cmd_line = cmd || process.execPath,
+        cmd_args = args || [];
+
+    debuglog('cmd_line: ' + cmd_line + ' ' + cmd_args.join());
+    var result = launch_priv.launchPriv(cmd_line, cmd_args, function (buff) {
+            debuglog('Received: ' + buff);
+            self.emit('data', buff);
+        }, function () {
+            debuglog('End.');
+            self.emit('end');
+        });
+
+    debuglog('result:' + result);
+    if (result === 0) {
+        debuglog('Started.');
+        self.emit('start');
+    }else{
+        debuglog('ERROR: ' + result);
+        self.emit('error', result);
     }
 };
+
+module.exports = new OSXLauncher();
